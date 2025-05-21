@@ -4,7 +4,7 @@
 """
 import logging
 from functools import wraps
-from config.config import Config
+from core.user_manager import UserManager
 
 logger = logging.getLogger(__name__)
 
@@ -13,30 +13,18 @@ class Auth:
     Класс для аутентификации пользователей Telegram-бота.
     """
 
-    @staticmethod
-    def is_user_allowed(user_id: int) -> bool:
+    def __init__(self, user_manager: UserManager, admin_handlers=None):
         """
-        Проверяет, имеет ли пользователь доступ к боту.
+        Инициализация аутентификации.
 
         Args:
-            user_id (int): Идентификатор пользователя Telegram.
-
-        Returns:
-            bool: True, если пользователь имеет доступ, иначе False.
+            user_manager (UserManager): Менеджер пользователей.
+            admin_handlers: Обработчики команд администратора.
         """
-        if not Config.ALLOWED_USERS:
-            logger.warning("Список разрешенных пользователей пуст. Доступ разрешен всем.")
-            return True
+        self.user_manager = user_manager
+        self.admin_handlers = admin_handlers
 
-        is_allowed = user_id in Config.ALLOWED_USERS
-
-        if not is_allowed:
-            logger.warning(f"Попытка несанкционированного доступа от пользователя {user_id}")
-
-        return is_allowed
-
-    @staticmethod
-    def auth_required(bot):
+    def auth_required(self, bot):
         """
         Декоратор для проверки доступа пользователя перед выполнением команды.
 
@@ -50,25 +38,46 @@ class Auth:
             @wraps(func)
             async def wrapper(message, *args, **kwargs):
                 user_id = message.from_user.id
+                username = message.from_user.username or message.from_user.first_name
 
-                if Auth.is_user_allowed(user_id):
+                if self.user_manager.is_user_allowed(user_id):
                     return await func(message, *args, **kwargs)
                 else:
                     await bot.send_message(
                         chat_id=message.chat.id,
                         text="⛔ У вас нет доступа к этому боту. Обратитесь к администратору."
                     )
-                    # Отправляем уведомление админу
-                    admin_id = Config.ADMIN_ID
-                    if admin_id:
-                        try:
-                            await bot.send_message(
-                                chat_id=int(admin_id),
-                                text=f"⚠️ Попытка несанкционированного доступа от пользователя {user_id} (@{message.from_user.username or 'без ника'})"
-                            )
-                            logger.info(f"Уведомление о попытке несанкционированного доступа отправлено админу")
-                        except Exception as e:
-                            logger.warning(f"Уведомление о попытке несанкционированного доступа не отправлено админу")
+
+                    # Отправляем уведомление админу с кнопками
+                    if self.admin_handlers:
+                        await self.admin_handlers.handle_unauthorized_access(user_id, username)
+
+                    return None
+            return wrapper
+        return decorator
+
+    def admin_required(self, bot):
+        """
+        Декоратор для проверки прав администратора перед выполнением команды.
+
+        Args:
+            bot (AsyncTeleBot): Экземпляр асинхронного Telegram-бота.
+
+        Returns:
+            function: Декоратор.
+        """
+        def decorator(func):
+            @wraps(func)
+            async def wrapper(message, *args, **kwargs):
+                user_id = message.from_user.id
+
+                if self.user_manager.is_admin(user_id):
+                    return await func(message, *args, **kwargs)
+                else:
+                    await bot.send_message(
+                        chat_id=message.chat.id,
+                        text="⛔ У вас нет прав администратора."
+                    )
                     return None
             return wrapper
         return decorator

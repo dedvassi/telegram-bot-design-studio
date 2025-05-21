@@ -10,6 +10,8 @@ from telebot import types
 from config.config import Config
 from core.session_manager import SessionManager
 from core.auth import Auth
+from core.user_manager import UserManager  # Новый импорт
+from handlers.admin_handlers import AdminHandlers  # Новый импорт
 
 logger = logging.getLogger(__name__)
 
@@ -17,86 +19,156 @@ class TelegramBot:
     """
     Класс для работы с Telegram-ботом.
     """
-    
+
     def __init__(self):
         """
         Инициализация Telegram-бота.
         """
         self.bot = AsyncTeleBot(Config.TELEGRAM_BOT_TOKEN)
         self.session_manager = SessionManager()
-        
+
+        # Инициализация менеджера пользователей
+        self.user_manager = UserManager(
+            Config.USERS_FILE_PATH,
+            int(Config.ADMIN_ID) if Config.ADMIN_ID else None
+        )
+
+        # Инициализация обработчиков команд администратора
+        self.admin_handlers = AdminHandlers(self.bot, self.user_manager)
+
+        # Инициализация аутентификации с передачей менеджера пользователей и обработчиков админа
+        self.auth = Auth(self.user_manager, self.admin_handlers)
+
         # Регистрация обработчиков команд
         self._register_handlers()
-        
+
         logger.info("Telegram-бот инициализирован")
-    
+
     def _register_handlers(self):
         """
         Регистрация обработчиков команд.
         """
-
-        # Передаем self.bot в декоратор для доступа к send_message
-        auth_decorator = Auth.auth_required(self.bot)
+        # Создаем декораторы для проверки прав доступа
+        auth_decorator = self.auth.auth_required(self.bot)
+        admin_decorator = self.auth.admin_required(self.bot)  # Новый декоратор для админа
 
         # Обработчик команды /start
         @self.bot.message_handler(commands=['start'])
         @auth_decorator
         async def start_command(message):
             await self._handle_start(message)
-        
+
         # Обработчик команды /help
         @self.bot.message_handler(commands=['help'])
         @auth_decorator
         async def help_command(message):
             await self._handle_help(message)
-        
+
         # Обработчик команды /protocol
         @self.bot.message_handler(commands=['protocol'])
         @auth_decorator
         async def protocol_command(message):
             await self._handle_protocol_start(message)
-        
+
+        # НОВЫЕ ОБРАБОТЧИКИ КОМАНД АДМИНИСТРАТОРА
+
+        # Обработчик команды /admin - показывает меню администратора
+        @self.bot.message_handler(commands=['admin'])
+        @auth_decorator  # Используем auth_decorator, но внутри метода проверяем права админа
+        async def admin_command(message):
+            await self.admin_handlers.handle_admin_command(message)
+
+        # Обработчик команды /users - показывает список разрешенных пользователей
+        @self.bot.message_handler(commands=['users'])
+        @auth_decorator  # Используем auth_decorator, но внутри метода проверяем права админа
+        async def users_command(message):
+            await self.admin_handlers.handle_users_command(message)
+
+        # Обработчик команды /adduser - добавляет пользователя по ID
+        @self.bot.message_handler(commands=['adduser'])
+        @auth_decorator  # Используем auth_decorator, но внутри метода проверяем права админа
+        async def add_user_command(message):
+            await self.admin_handlers.handle_add_user_command(message)
+
+        # Обработчик команды /removeuser - удаляет пользователя по ID
+        @self.bot.message_handler(commands=['removeuser'])
+        @auth_decorator  # Используем auth_decorator, но внутри метода проверяем права админа
+        async def remove_user_command(message):
+            await self.admin_handlers.handle_remove_user_command(message)
+
         # Обработчик текстовых сообщений
         @self.bot.message_handler(content_types=['text'])
         @auth_decorator
         async def text_message(message):
             await self._handle_text_message(message)
-        
+
         # Обработчик голосовых сообщений
         @self.bot.message_handler(content_types=['voice'])
         @auth_decorator
         async def voice_message(message):
             await self._handle_voice_message(message)
-        
+
+        # НОВЫЙ ОБРАБОТЧИК CALLBACK-ЗАПРОСОВ
+
+        # Обработчик callback-запросов от кнопок
+        @self.bot.callback_query_handler(func=lambda call: True)
+        async def callback_handler(call):
+            # Проверяем, относится ли callback к командам администратора
+            if (call.data.startswith('admin_') or
+                call.data.startswith('remove_user_') or
+                call.data.startswith('add_user_') or
+                call.data.startswith('block_user_')):
+                await self.admin_handlers.handle_admin_callback(call)
+
         logger.info("Обработчики команд зарегистрированы")
-    
+
     async def _handle_start(self, message):
         """
         Обработчик команды /start.
-        
+
         Args:
             message: Объект сообщения Telegram.
         """
         user_id = message.from_user.id
         username = message.from_user.username or message.from_user.first_name
-        
+
+        # Добавляем информацию о командах администратора, если пользователь - админ
+        admin_commands = ""
+        if self.user_manager.is_admin(user_id):
+            admin_commands = "\n\n🔐 Команды администратора:\n" \
+                             "/admin - Меню администратора\n" \
+                             "/users - Список разрешенных пользователей\n" \
+                             "/adduser ID - Добавить пользователя\n" \
+                             "/removeuser ID - Удалить пользователя"
+
         await self.bot.send_message(
             message.chat.id,
             f"Привет, {username}! Я бот для бизнес-задач дизайн-студии.\n\n"
             "Доступные команды:\n"
             "/protocol - Запуск сценария протоколирования встречи\n"
-            "/help - Показать справку"
+            "/help - Показать справку" + admin_commands
         )
-        
+
         logger.info(f"Пользователь {user_id} запустил бота")
-    
+
     async def _handle_help(self, message):
         """
         Обработчик команды /help.
-        
+
         Args:
             message: Объект сообщения Telegram.
         """
+        # Добавляем информацию о командах администратора, если пользователь - админ
+        admin_help = ""
+        if self.user_manager.is_admin(message.from_user.id):
+            admin_help = "\n\n🔐 Команды администратора:\n" \
+                         "/admin - Меню администратора с интерактивными кнопками\n" \
+                         "/users - Показать список разрешенных пользователей\n" \
+                         "/adduser ID - Добавить пользователя по ID\n" \
+                         "/removeuser ID - Удалить пользователя по ID\n\n" \
+                         "При попытке несанкционированного доступа администратор " \
+                         "получает уведомление с кнопками для быстрого добавления пользователя."
+
         await self.bot.send_message(
             message.chat.id,
             "Справка по командам бота:\n\n"
@@ -108,7 +180,7 @@ class TelegramBot:
             "  - Ключевые вопросы (через голосовое сообщение)\n"
             "  - Принятые решения (через голосовое сообщение)\n"
             "  После подтверждения всех блоков бот сгенерирует PDF-документ.\n\n"
-            "/help - Показать эту справку"
+            "/help - Показать эту справку" + admin_help
         )
         
         logger.info(f"Пользователь {message.from_user.id} запросил справку")

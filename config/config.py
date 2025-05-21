@@ -19,7 +19,10 @@ class Config:
 
     # ADMIN_ID
     ADMIN_ID = os.getenv('ADMIN_ID')
-    
+
+    # USER_FILE_PATH:
+    USERS_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'users.json')
+
     # Настройки Whisper
     WHISPER_MODEL = os.getenv('WHISPER_MODEL', 'large')
     

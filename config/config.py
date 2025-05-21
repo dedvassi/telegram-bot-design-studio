@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 class Config:
     # Токен Telegram бота
     TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+
+    # ADMIN_ID
+    ADMIN_ID = os.getenv('ADMIN_ID')
     
     # Настройки Whisper
     WHISPER_MODEL = os.getenv('WHISPER_MODEL', 'large')

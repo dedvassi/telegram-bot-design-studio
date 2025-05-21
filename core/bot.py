@@ -34,33 +34,37 @@ class TelegramBot:
         """
         Регистрация обработчиков команд.
         """
+
+        # Передаем self.bot в декоратор для доступа к send_message
+        auth_decorator = Auth.auth_required(self.bot)
+
         # Обработчик команды /start
         @self.bot.message_handler(commands=['start'])
-        @Auth.auth_required
+        @auth_decorator
         async def start_command(message):
             await self._handle_start(message)
         
         # Обработчик команды /help
         @self.bot.message_handler(commands=['help'])
-        @Auth.auth_required
+        @auth_decorator
         async def help_command(message):
             await self._handle_help(message)
         
         # Обработчик команды /protocol
         @self.bot.message_handler(commands=['protocol'])
-        @Auth.auth_required
+        @auth_decorator
         async def protocol_command(message):
             await self._handle_protocol_start(message)
         
         # Обработчик текстовых сообщений
         @self.bot.message_handler(content_types=['text'])
-        @Auth.auth_required
+        @auth_decorator
         async def text_message(message):
             await self._handle_text_message(message)
         
         # Обработчик голосовых сообщений
         @self.bot.message_handler(content_types=['voice'])
-        @Auth.auth_required
+        @auth_decorator
         async def voice_message(message):
             await self._handle_voice_message(message)
         

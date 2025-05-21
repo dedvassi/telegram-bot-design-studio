@@ -67,8 +67,7 @@ class Auth:
                                 text=f"⚠️ Попытка несанкционированного доступа от пользователя {user_id} (@{message.from_user.username or 'без ника'})"
                             )
                         except Exception as e:
-                            # Можно залогировать ошибку, если не удалось отправить админу
-                            print(f"Не удалось отправить сообщение админу: {e}")
+                            logger.info(f"Уведомление о попытке несанкционированного доступа  отправлено админу")
                     return None
             return wrapper
         return decorator

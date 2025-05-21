@@ -66,8 +66,9 @@ class Auth:
                                 chat_id=int(admin_id),
                                 text=f"⚠️ Попытка несанкционированного доступа от пользователя {user_id} (@{message.from_user.username or 'без ника'})"
                             )
+                            logger.info(f"Уведомление о попытке несанкционированного доступа отправлено админу")
                         except Exception as e:
-                            logger.info(f"Уведомление о попытке несанкционированного доступа  отправлено админу")
+                            logger.warning(f"Уведомление о попытке несанкционированного доступа не отправлено админу")
                     return None
             return wrapper
         return decorator

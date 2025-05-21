@@ -45,13 +45,14 @@ class Auth:
         Returns:
             function: Обернутая функция с проверкой доступа.
         """
-        async def wrapper(message, *args, **kwargs):
+        async def wrapper(bot, message, *args, **kwargs):
             user_id = message.from_user.id
             
             if Auth.is_user_allowed(user_id):
-                return await func(message, *args, **kwargs)
+                return await func(bot, message, *args, **kwargs)
             else:
-                await message.reply("У вас нет доступа к этому боту.")
+                # Исправлено: используем bot.send_message вместо message.reply
+                await bot.send_message(message.chat.id, "У вас нет доступа к этому боту.")
                 return None
         
         return wrapper

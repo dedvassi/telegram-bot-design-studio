@@ -37,31 +37,31 @@ class TelegramBot:
         # Обработчик команды /start
         @self.bot.message_handler(commands=['start'])
         @Auth.auth_required
-        async def start_command(message):
+        async def start_command(bot, message):
             await self._handle_start(message)
         
         # Обработчик команды /help
         @self.bot.message_handler(commands=['help'])
         @Auth.auth_required
-        async def help_command(message):
+        async def help_command(bot, message):
             await self._handle_help(message)
         
         # Обработчик команды /protocol
         @self.bot.message_handler(commands=['protocol'])
         @Auth.auth_required
-        async def protocol_command(message):
+        async def protocol_command(bot, message):
             await self._handle_protocol_start(message)
         
         # Обработчик текстовых сообщений
         @self.bot.message_handler(content_types=['text'])
         @Auth.auth_required
-        async def text_message(message):
+        async def text_message(bot, message):
             await self._handle_text_message(message)
         
         # Обработчик голосовых сообщений
         @self.bot.message_handler(content_types=['voice'])
         @Auth.auth_required
-        async def voice_message(message):
+        async def voice_message(bot, message):
             await self._handle_voice_message(message)
         
         logger.info("Обработчики команд зарегистрированы")
